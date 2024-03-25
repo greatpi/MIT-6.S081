@@ -305,6 +305,8 @@ fork(void)
 
   pid = np->pid;
 
+  np->mask = p->mask;
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -653,4 +655,12 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+trace(int mask) 
+{
+  struct proc *p = myproc();
+  p->mask = mask;
+  return 0;
 }
