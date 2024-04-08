@@ -666,11 +666,11 @@ trace(int mask)
   return 0;
 }
 
-int
+uint64
 nproc()
 {
   struct proc *p;
-  int count = 0;
+  uint64 count = 0;
 
   for (p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
@@ -688,7 +688,7 @@ sysinfo(uint64 addr)
   struct proc *p = myproc();
   struct sysinfo info;
 
-  info.freemem = freemem() * PGSIZE;
+  info.freemem = freemem();
   info.nproc = nproc();
 
   if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
