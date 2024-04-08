@@ -135,6 +135,11 @@ found:
     return 0;
   }
 
+  // 对虚拟地址USYSYCALL进行初始化
+  struct usyscall usys = { p->pid };
+  uint64 usys_addr = walkaddr(p->pagetable, USYSCALL);
+  *(struct usyscall *)usys_addr = usys;
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -150,6 +155,8 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  // 释放USYSYCALL
+  kfree((void*)walkaddr(p->pagetable, USYSCALL));
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -192,6 +199,16 @@ proc_pagetable(struct proc *p)
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
+  // 加速系统调用所使用的页
+  pagetable_t pgt_sp = uvmcreate();
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)pgt_sp, PTE_R) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, USYSCALL, 1, 1);
     uvmfree(pagetable, 0);
     return 0;
   }
