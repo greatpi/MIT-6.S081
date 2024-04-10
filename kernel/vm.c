@@ -432,3 +432,28 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+// 打印页表信息
+void
+vmprint(pagetable_t pgt)
+{
+  printf("page table %p\n", pgt);
+  for(int i = 0; i < 512; i++) {
+    if(pgt[i] & PTE_V) {
+      pagetable_t l0 = (pagetable_t)PTE2PA(pgt[i]);
+      printf(".. %d: pte %p pa %p\n", i, pgt[i], l0);
+      for(int j = 0; j < 512; j++) {
+        if(l0[j] & PTE_V) {
+          pagetable_t l1 = (pagetable_t)PTE2PA(l0[j]);
+          printf(".. .. %d: pte %p pa %p\n", j, l0[j], l1);
+          for (int k = 0; k < 512; k++) {
+            if(l1[k] & PTE_V) {
+              pagetable_t l2 = (pagetable_t)PTE2PA(l1[k]);
+              printf(".. .. .. %d: pte %p pa %p\n", k, l1[k], l2);
+            }
+          }
+        }
+      }
+    }
+  }
+}
