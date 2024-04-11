@@ -197,6 +197,7 @@ proc_pagetable(struct proc *p)
   }
 
   // 加速系统调用所使用的页
+  #ifdef LAB_PGTBL
   pagetable_t pgt_sp = uvmcreate();
   struct usyscall usys = {p->pid};
   *(struct usyscall *) pgt_sp = usys;
@@ -207,6 +208,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+  #endif
 
   return pagetable;
 }
@@ -216,7 +218,9 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+  #ifdef LAB_PGTBL
   uvmunmap(pagetable, USYSCALL, 1, 1); 
+  #endif
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
@@ -667,3 +671,29 @@ procdump(void)
     printf("\n");
   }
 }
+
+#ifdef LAB_PGTBL
+
+int 
+pgaccess(void *base, int len, void *mask) {
+  uint64 tmp = 0;
+  struct proc *p = myproc();
+
+  // 获取从base开始的len个pte，检查其访问位
+  for(int i = 0; i < len; i++){
+    pte_t *pte = walk(p->pagetable, (uint64)base + i * PGSIZE, 0);
+    if (pte == 0)
+      return -1;
+    if(*pte & PTE_A) {
+      tmp |= 1ULL << i;
+      *pte &= ~PTE_A;
+    }
+  }
+
+  if(copyout(p->pagetable, (uint64)mask, (char *)&tmp, sizeof(uint64)) < 0) 
+    return -1;
+
+  return 0;
+}
+
+#endif

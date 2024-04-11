@@ -2693,16 +2693,15 @@ execout(char *s)
       // progress.
       for(int i = 0; i < avail; i++)
         sbrk(-4096);
-      
       close(1);
       char *args[] = { "echo", "x", 0 };
       exec("echo", args);
       exit(0);
     } else {
       wait((int*)0);
+      printf("avail %d\n", avail);
     }
   }
-
   exit(0);
 }
 
