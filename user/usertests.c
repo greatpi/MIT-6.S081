@@ -2699,7 +2699,6 @@ execout(char *s)
       exit(0);
     } else {
       wait((int*)0);
-      printf("avail %d\n", avail);
     }
   }
   exit(0);
