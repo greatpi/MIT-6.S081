@@ -121,6 +121,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +132,21 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void 
+backtrace(void)
+{
+  uint64 fp;
+  fp = r_fp();
+  printf("backtrace:\n");
+
+  // 寄存器里的值就是物理地址, 系统调用也处于内核中
+  // 需要从低地址获取，所以必须向下分别偏移 8 和 16 字节
+  uint64 up = PGROUNDUP(fp);
+
+  while (fp < up) {
+    printf("%p\n", *(uint64 *) (fp - 8));
+    fp = *(uint64 *) (fp - 16);
+  }
 }
