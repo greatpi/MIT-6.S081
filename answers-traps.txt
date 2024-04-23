@@ -1,0 +1,14 @@
+Up to eight integer registers, a0-a7, and up to eight floating-point registers, fa0-fa7, are used to pass arguments for a function call.
+In main's call to printf, the 13 is hold in register a2, because the assembly code 'li a2 13'.
+
+In the assembly code for main, the 'li	a1,12' instruction is used to load the value 12 into register a1.
+The value 12 is computed by adding 1 to the value 11, because the compiler has optimized the code to use the immediate value 12 instead of the function call.
+So, the main function don't call the function f and g.
+
+The function printf is located at address 0x00616.
+
+The address of the next instruction will be held in the ra register which is used to return from a function call.
+
+The output is 'HE110 World'.
+
+The value of the register a2 will be printed after 'y='.
