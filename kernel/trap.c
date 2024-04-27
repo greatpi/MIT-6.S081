@@ -70,38 +70,9 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if(r_scause() == 15){
-    pte_t *pte = walk(p->pagetable, r_stval(), 0);
-    if(pte == 0){
-      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    uint64 va = r_stval();
+    if(copycow(p->pagetable, va) < 0)
       p->killed = 1;
-    } else {
-      if(*pte & PTE_COW){
-        struct proc *pp = p->parent;
-        pte_t *ptep = walk(pp->pagetable, r_stval(), 0);
-        char *mem;
-        uint64 pap = PTE2PA(*ptep);
-        *ptep |= PTE_W;
-        *pte |= PTE_W;
-        *ptep &= ~PTE_COW;
-        *pte &= ~PTE_COW;
-        uint flags = PTE_FLAGS(*pte);
-        if((mem = kalloc()) == 0){
-          p->killed = 1;
-        } else {
-          memmove(mem, (char*)pap, PGSIZE);
-          ref_count[pap/PGSIZE]--;
-          if(mappages(p->pagetable, r_stval(), PGSIZE, (uint64)mem, flags) < 0){
-            kfree(mem);
-            p->killed = 1;
-          }
-        }
-      } else {
-        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-        p->killed = 1;
-      }
-    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
