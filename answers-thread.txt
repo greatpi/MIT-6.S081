@@ -1,0 +1,4 @@
+When there is only 1 thread, there is no race condition.
+The event will alaways be set by the thread.
+However, when there are multiple threads, there is a race 
+condition when the event is set by threads.
