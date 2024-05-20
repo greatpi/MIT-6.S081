@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -53,6 +54,9 @@ procinit(void)
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->kstack = KSTACK((int) (p - proc));
+      for(int i = 0; i < 16; i++){
+        p->vma[i].addr = 0xffffffffffffffff;
+      }
   }
 }
 
@@ -164,6 +168,9 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  for(int i = 0; i < 16; i++){
+    p->vma[i].addr = 0xffffffffffffffff;
+  }
 }
 
 // Create a user page table for a given process,
@@ -281,6 +288,12 @@ fork(void)
     return -1;
   }
 
+  for(int i = 0; i < 16; i++){
+    np->vma[i] = p->vma[i];
+    if(np->vma[i].addr != 0xffffffffffffffff)
+      filedup(np->vma[i].file);
+  }
+
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -353,6 +366,26 @@ exit(int status)
     }
   }
 
+  for(int i = 0; i < 16; i++){
+    struct VMA *vma = &p->vma[i];
+    if(vma->addr != 0xffffffffffffffff){
+      int flags = vma->flags;
+      uint64 addr = vma->addr;
+      uint64 len = vma->initsize;
+      
+      // 查看是否映射了，映射了才写回或释放，否则直接跳过
+      // 需要对每个PGSIZE进行判断
+      for(uint64 j = addr; j < addr + len; j += PGSIZE){
+        if(walkaddr(p->pagetable, j) != 0) {
+          if(flags & MAP_SHARED)
+            filewrite(vma->file, j, PGSIZE);
+          uvmunmap(p->pagetable, j, 1, 1); 
+        }
+      }
+      vma->addr = 0xffffffffffffffff;
+      fileclose(vma->file);
+    }
+  }
   begin_op();
   iput(p->cwd);
   end_op();

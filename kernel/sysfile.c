@@ -484,3 +484,107 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int length, prot, flags, fd, offset;
+
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0 || argint(2, &prot) || argint(3, &flags) || argint(4, &fd) || argint(5, &offset))
+    return 0xffffffffffffffff;
+  
+  struct proc *p = myproc();
+  p->sz = PGROUNDUP(p->sz);
+  addr = p->sz;
+  struct VMA *vma = p->vma;
+
+  int i = 0;
+  while(vma[i].addr != 0xffffffffffffffff && i < 16)
+    i++;
+
+  if(i == 16)
+    return 0xffffffffffffffff;
+
+  if(flags == MAP_SHARED && (prot & PROT_WRITE) && (p->ofile[fd]->writable == 0)) 
+    return 0xffffffffffffffff;
+
+  vma[i].addr = addr;
+  length = PGROUNDUP(length);
+  vma[i].size = length;
+  vma[i].initsize = length;
+  vma[i].prot = prot;
+  vma[i].flags = flags;
+  vma[i].file = p->ofile[fd];
+  filedup(vma[i].file);
+
+  p->sz = p->sz + length;
+  return addr;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  int flags;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0)
+    return -1;
+
+  struct VMA *vma = p->vma;
+  int i = 0;
+  for(; i < 16; i++){
+    if(vma->addr <= addr && vma->addr + vma->initsize > addr)
+      break;
+  }
+  if(i == 16)
+    return -1;
+
+  flags = vma[i].flags;
+  addr = PGROUNDDOWN(addr);
+  length = PGROUNDDOWN(length);
+  // 查看是否映射了，映射了才写回或释放，否则直接跳过
+  if(walkaddr(p->pagetable, addr) != 0) {
+    if(flags & MAP_SHARED){
+      // 不能用filewrite，因为filewrite会将文件指针移动到文件末尾
+      // 应该使用mmap的文件指针
+      int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+      int i = 0, r;
+      int off = addr - vma[i].addr;
+      struct inode *ip = vma[i].file->ip;
+      while(i < length){
+        int n1 = length - i;
+        if(n1 > max)
+          n1 = max;
+
+        begin_op();
+        ilock(ip);
+        if ((r = writei(ip, 1, addr, off, n1)) > 0)
+          off += r;
+        iunlock(ip);
+        end_op();
+
+        if(r != n1){
+          // error from writei
+          break;
+        }
+        i += r;
+      }
+    }
+    uvmunmap(p->pagetable, addr, length / PGSIZE, 1);  
+  }
+  vma[i].size -= length;
+  if(vma[i].size == 0){
+    vma[i].addr = 0xffffffffffffffff;
+    fileclose(vma[i].file);
+    vma[i].file = 0;
+    vma[i].flags = 0;
+    vma[i].prot = 0;
+    vma[i].initsize = 0;
+  }
+
+  return 0;
+}
